@@ -7,8 +7,8 @@ namespace ScenesNavigators.Core
     public class ScenesNavigator : EditorWindow
     {
         private Vector2 _scrollPosition;
-        private bool _useMultiScene;
-        private bool _hasToSelectOnProjectView = true;
+        private bool _useMultiScene = false;
+        private bool _hasToSelectOnProjectView = false;
 
         private string _sceneToSearch = "";
         private bool _isOptionsActivated;
@@ -19,7 +19,7 @@ namespace ScenesNavigators.Core
         [MenuItem("Tools/ScenesNavigator")]
         private static void ShowWindow()
         {
-            EditorWindow.GetWindow(typeof(ScenesNavigator), false, "Scenes Navigator");
+            GetWindow(typeof(ScenesNavigator), false, "Scenes Navigator");
         }
 
         private void OnGUI()
@@ -36,7 +36,7 @@ namespace ScenesNavigators.Core
             _foldoutStyle = new GUIStyle(EditorStyles.foldoutHeader);
             _foldoutStyle.fontSize = 10;
 
-            _isOptionsActivated = EditorGUILayout.BeginFoldoutHeaderGroup(_isOptionsActivated, "Options", _foldoutStyle);
+            _isOptionsActivated = EditorGUILayout.BeginFoldoutHeaderGroup(_isOptionsActivated, "Settings", _foldoutStyle);
 
             if (_isOptionsActivated)
             {
@@ -69,40 +69,44 @@ namespace ScenesNavigators.Core
 
             GUILayout.BeginHorizontal();
 
-            _sceneToSearch = GUILayout.TextField(_sceneToSearch, new GUIStyle("ToolbarSeachTextField"));
+            _sceneToSearch = GUILayout.TextField(_sceneToSearch, new GUIStyle("ToolbarSearchTextField"));
 
             if (_sceneToSearch != "")
             {
-                if (GUILayout.Button(EditorGUIUtility.IconContent("winbtn_mac_close_h"), EditorStyles.iconButton, GUILayout.Width(18), GUILayout.Height(18)))
+                if (GUILayout.Button(EditorGUIUtility.IconContent("winbtn_mac_close_h"), EditorStyles.iconButton, 
+                        GUILayout.Width(18), GUILayout.Height(18)))
                     _sceneToSearch = "";
             }
 
             GUILayout.EndHorizontal();
 
-            if (_sceneToSearch != "")
+            if (_sceneToSearch == "") 
+                return;
+            
+            GUILayout.BeginVertical();
+
+            foreach (var scene in EditorBuildSettings.scenes)
             {
-                GUILayout.BeginVertical();
+                string sceneName = GetSceneName(scene.path);
+                sceneName = sceneName.ToLower();
+                bool exists = sceneName.Contains(_sceneToSearch.ToLower());
+                if (!exists) 
+                    continue;
 
-                for (int i = 0; i < EditorBuildSettings.scenes.Length; i++)
-                {
-                    string sceneName = GetSceneName(EditorBuildSettings.scenes[i].path);
-                    sceneName = sceneName.ToLower();
-                    if (!sceneName.Contains(_sceneToSearch.ToLower())) continue;
+                GUILayout.Space(5);
 
-                    GUILayout.Space(5);
-
-                    DrawSceneButton(EditorBuildSettings.scenes[i].path);
-                }
-
-                GUILayout.EndVertical();
+                DrawSceneButton(scene.path);
             }
+
+            GUILayout.EndVertical();
         }
 
         private void DrawScenesList()
         {
             GUILayout.BeginVertical("Box");
 
-            _scrollPosition = GUILayout.BeginScrollView(_scrollPosition, false, false, GUILayout.Width(this.position.width - 15), GUILayout.MinHeight(1), GUILayout.MaxHeight(1000), GUILayout.ExpandHeight(true));
+            _scrollPosition = GUILayout.BeginScrollView(_scrollPosition, false, false, GUILayout.Width(position.width - 15), 
+                GUILayout.MinHeight(1), GUILayout.MaxHeight(1000), GUILayout.ExpandHeight(true));
 
             DrawAllScenes();
 
@@ -116,17 +120,20 @@ namespace ScenesNavigators.Core
             _sceneButtonStyle = new GUIStyle(EditorStyles.toolbarButton);
             _sceneButtonStyle.fontSize = 10;
 
-            for (int i = 0; i < EditorBuildSettings.scenes.Length; i++)
+            foreach (var scene in EditorBuildSettings.scenes)
             {
                 GUILayout.Space(5);
 
-                DrawSceneButton(EditorBuildSettings.scenes[i].path);
+                DrawSceneButton(scene.path);
             }
         }
 
         private void DrawSceneButton(string path)
         {
-            if (GUILayout.Button(GetSceneName(path), _sceneButtonStyle))
+            if (!GUILayout.Button(GetSceneName(path), _sceneButtonStyle)) 
+                return;
+            
+            if (Event.current.button == 0)
             {
                 if (_useMultiScene)
                     EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
@@ -135,14 +142,19 @@ namespace ScenesNavigators.Core
                     EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
                     EditorSceneManager.OpenScene(path);
                 }
-
-                if (!_hasToSelectOnProjectView)
-                    return;
-
-                UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath(path, typeof(UnityEngine.Object));
-                Selection.activeObject = obj;
-                EditorGUIUtility.PingObject(obj);
+                    
             }
+            else if (Event.current.button == 2)
+            {
+                EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+            }
+
+            if (!_hasToSelectOnProjectView && Event.current.button != 1)
+                return;
+
+            Object obj = AssetDatabase.LoadAssetAtPath(path, typeof(UnityEngine.Object));
+            Selection.activeObject = obj;
+            EditorGUIUtility.PingObject(obj);
         }
 
         private string GetSceneName(string _path)
