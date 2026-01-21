@@ -119,6 +119,7 @@ namespace ScenesNavigators.Core
         {
             _sceneButtonStyle = new GUIStyle(EditorStyles.toolbarButton);
             _sceneButtonStyle.fontSize = 10;
+            _sceneButtonStyle.alignment = TextAnchor.MiddleLeft;
 
             foreach (var scene in EditorBuildSettings.scenes)
             {
