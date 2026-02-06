@@ -7,14 +7,9 @@ namespace ScenesNavigators.Core
     public class ScenesNavigator : EditorWindow
     {
         private Vector2 _scrollPosition;
-        private bool _useMultiScene = false;
-        private bool _hasToSelectOnProjectView = false;
-
+        private Vector2 _searchScrollPosition;
         private string _sceneToSearch = "";
-        private bool _isOptionsActivated;
-
         private GUIStyle _sceneButtonStyle;
-        private GUIStyle _foldoutStyle;
 
         [MenuItem("Tools/ScenesNavigator")]
         private static void ShowWindow()
@@ -25,39 +20,14 @@ namespace ScenesNavigators.Core
         private void OnGUI()
         {
             DrawOptions();
-
             DrawScenesList();
         }
 
         private void DrawOptions()
         {
             GUILayout.BeginVertical("Box");
-
-            _foldoutStyle = new GUIStyle(EditorStyles.foldoutHeader);
-            _foldoutStyle.fontSize = 10;
-
-            _isOptionsActivated = EditorGUILayout.BeginFoldoutHeaderGroup(_isOptionsActivated, "Settings", _foldoutStyle);
-
-            if (_isOptionsActivated)
-            {
-                GUILayout.BeginHorizontal();
-
-                GUILayout.Label("Open Additive");
-                _useMultiScene = EditorGUILayout.Toggle("", _useMultiScene);
-
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-
-                GUILayout.Label("Select on project");
-                _hasToSelectOnProjectView = EditorGUILayout.Toggle("", _hasToSelectOnProjectView);
-
-                GUILayout.EndHorizontal();
-
-                DrawSearchBar();
-            }
-
-            EditorGUILayout.EndFoldoutHeaderGroup();
+            
+            DrawSearchBar();
 
             GUILayout.EndVertical();
         }
@@ -73,6 +43,7 @@ namespace ScenesNavigators.Core
 
             if (_sceneToSearch != "")
             {
+                
                 if (GUILayout.Button(EditorGUIUtility.IconContent("winbtn_mac_close_h"), EditorStyles.iconButton, 
                         GUILayout.Width(18), GUILayout.Height(18)))
                     _sceneToSearch = "";
@@ -80,11 +51,17 @@ namespace ScenesNavigators.Core
 
             GUILayout.EndHorizontal();
 
-            if (_sceneToSearch == "") 
+            if (_sceneToSearch == "")
+            {
+                _searchScrollPosition = Vector2.zero;
                 return;
+            }
             
             GUILayout.BeginVertical();
 
+            _searchScrollPosition = GUILayout.BeginScrollView(_searchScrollPosition, false, false, GUILayout.Width(position.width - 15), 
+                GUILayout.MinHeight(1), GUILayout.MaxHeight(1000), GUILayout.ExpandHeight(true));
+            
             foreach (var scene in EditorBuildSettings.scenes)
             {
                 string sceneName = GetSceneName(scene.path);
@@ -97,6 +74,8 @@ namespace ScenesNavigators.Core
 
                 DrawSceneButton(scene.path);
             }
+            
+            GUILayout.EndScrollView();
 
             GUILayout.EndVertical();
         }
@@ -133,29 +112,24 @@ namespace ScenesNavigators.Core
         {
             if (!GUILayout.Button(GetSceneName(path), _sceneButtonStyle)) 
                 return;
-            
-            if (Event.current.button == 0)
+
+            switch (Event.current.button)
             {
-                if (_useMultiScene)
-                    EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-                else
-                {
+                case 0:
                     EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
                     EditorSceneManager.OpenScene(path);
+                    break;
+                case 2:
+                    EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+                    break;
+                case 1:
+                {
+                    Object obj = AssetDatabase.LoadAssetAtPath(path, typeof(Object));
+                    Selection.activeObject = obj;
+                    EditorGUIUtility.PingObject(obj);
+                    break;
                 }
-                    
             }
-            else if (Event.current.button == 2)
-            {
-                EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-            }
-
-            if (!_hasToSelectOnProjectView && Event.current.button != 1)
-                return;
-
-            Object obj = AssetDatabase.LoadAssetAtPath(path, typeof(UnityEngine.Object));
-            Selection.activeObject = obj;
-            EditorGUIUtility.PingObject(obj);
         }
 
         private string GetSceneName(string _path)
