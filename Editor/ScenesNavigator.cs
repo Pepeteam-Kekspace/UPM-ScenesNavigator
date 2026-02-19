@@ -89,6 +89,12 @@ namespace ScenesNavigators.Core
 
             DrawAllScenes();
 
+            if (GUILayout.Button("Open all scenes"))
+            {
+                foreach (var scene in EditorBuildSettings.scenes)
+                    EditorSceneManager.OpenScene(scene.path, OpenSceneMode.Additive);
+            }
+
             GUILayout.EndScrollView();
 
             GUILayout.EndVertical();
