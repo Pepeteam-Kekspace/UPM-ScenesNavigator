@@ -147,6 +147,7 @@ namespace ScenesNavigators.Core
                     break;
                 case 2:
                     EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+                    AddSceneToLatestOpened(path);
                     break;
                 case 1:
                 {
