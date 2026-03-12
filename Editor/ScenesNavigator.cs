@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using System.Collections.Generic;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
@@ -10,6 +11,7 @@ namespace ScenesNavigators.Core
         private Vector2 _searchScrollPosition;
         private string _sceneToSearch = "";
         private GUIStyle _sceneButtonStyle;
+        private Queue<string> _lastestScenes = new Queue<string>();
 
         [MenuItem("Tools/ScenesNavigator")]
         private static void ShowWindow()
@@ -21,6 +23,23 @@ namespace ScenesNavigators.Core
         {
             DrawOptions();
             DrawScenesList();
+            DrawLatestScenes();
+        }
+
+        private void DrawLatestScenes()
+        {
+            if(_lastestScenes == null || _lastestScenes.Count == 0)
+                return;
+            
+            GUILayout.BeginVertical("Box");
+            GUILayout.Label("Latest opened scenes");
+            foreach (var scene in _lastestScenes)
+            {
+                GUILayout.Space(5);
+                DrawSceneButton(scene);
+            }
+            
+            GUILayout.EndVertical();
         }
 
         private void DrawOptions()
@@ -124,6 +143,7 @@ namespace ScenesNavigators.Core
                 case 0:
                     EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
                     EditorSceneManager.OpenScene(path);
+                    AddSceneToLatestOpened(path);
                     break;
                 case 2:
                     EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
@@ -136,6 +156,16 @@ namespace ScenesNavigators.Core
                     break;
                 }
             }
+        }
+
+        private void AddSceneToLatestOpened(string scenePath)
+        {
+            if (_lastestScenes.Contains(scenePath))
+                return;
+            
+            _lastestScenes.Enqueue(scenePath);
+            if (_lastestScenes.Count > 3)
+                _lastestScenes.Dequeue();
         }
 
         private string GetSceneName(string _path)
