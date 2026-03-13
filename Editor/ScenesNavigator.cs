@@ -32,7 +32,13 @@ namespace ScenesNavigators.Core
                 return;
             
             GUILayout.BeginVertical("Box");
+            GUILayout.BeginHorizontal();
             GUILayout.Label("Latest opened scenes");
+            
+            if(GUILayout.Button(EditorGUIUtility.IconContent("Cancel"), GUILayout.Width(30)))
+                _lastestScenes.Clear();
+            
+            GUILayout.EndHorizontal();
             foreach (var scene in _lastestScenes)
             {
                 GUILayout.Space(5);
@@ -165,7 +171,7 @@ namespace ScenesNavigators.Core
                 return;
             
             _lastestScenes.Enqueue(scenePath);
-            if (_lastestScenes.Count > 3)
+            if (_lastestScenes.Count > 2)
                 _lastestScenes.Dequeue();
         }
 
