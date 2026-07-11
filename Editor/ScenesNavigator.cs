@@ -16,7 +16,8 @@ namespace ScenesNavigators.Core
         [MenuItem("Tools/ScenesNavigator")]
         private static void ShowWindow()
         {
-            GetWindow(typeof(ScenesNavigator), false, "Scenes Navigator");
+            GetWindow(typeof(ScenesNavigator), false, "Scenes");
+            titleContent = new GUIContent("Scenes");
         }
 
         private void OnGUI()
