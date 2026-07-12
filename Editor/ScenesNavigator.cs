@@ -1,17 +1,24 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 namespace ScenesNavigators.Core
 {
     public class ScenesNavigator : EditorWindow
     {
-        private Vector2 _scrollPosition;
-        private Vector2 _searchScrollPosition;
-        private string _sceneToSearch = "";
-        private GUIStyle _sceneButtonStyle;
-        private Queue<string> _lastestScenes = new Queue<string>();
+        private const string StyleSheetPath = "Packages/com.lalo.scenesnavigator/Editor/ScenesNavigator.uss";
+
+        private readonly List<SceneRowView> _sceneRows = new List<SceneRowView>();
+        private readonly List<SceneRowView> _recentRows = new List<SceneRowView>();
+        private RecentScenesRepository _recentScenesRepository;
+        private ToolbarSearchField _searchField;
+        private VisualElement _recentSection;
+        private VisualElement _recentRowsContainer;
+        private ScrollView _scenesScrollView;
 
         [MenuItem("Tools/ScenesNavigator")]
         private static void ShowWindow()
@@ -19,185 +26,281 @@ namespace ScenesNavigators.Core
             GetWindow(typeof(ScenesNavigator), false, "Scenes");
         }
 
-        private void OnGUI()
+        private void CreateGUI()
         {
-            DrawOptions();
-            DrawScenesList();
-            DrawLatestScenes();
+            _recentScenesRepository = new RecentScenesRepository();
+
+            LoadStyleSheet();
+            CreateToolbar();
+            CreateRecentSection();
+            CreateScenesSection();
+            RebuildAllRows();
+            SubscribeToEditorEvents();
         }
 
-        private void DrawLatestScenes()
+        private void OnDisable()
         {
-            if(_lastestScenes == null || _lastestScenes.Count == 0)
-                return;
-            
-            GUILayout.BeginVertical("Box");
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Latest opened scenes");
-            
-            if(GUILayout.Button(EditorGUIUtility.IconContent("Cancel"), GUILayout.Width(30)))
-                _lastestScenes.Clear();
-            
-            GUILayout.EndHorizontal();
-            foreach (var scene in _lastestScenes)
-            {
-                GUILayout.Space(5);
-                DrawSceneButton(scene);
-            }
-            
-            GUILayout.EndVertical();
+            UnsubscribeFromEditorEvents();
         }
 
-        private void DrawOptions()
+        private void LoadStyleSheet()
         {
-            GUILayout.BeginVertical("Box");
-            
-            DrawSearchBar();
-
-            GUILayout.EndVertical();
-        }
-
-        private void DrawSearchBar()
-        {
-            _sceneButtonStyle = new GUIStyle(EditorStyles.toolbarButton);
-            _sceneButtonStyle.fontSize = 10;
-
-            GUILayout.BeginHorizontal();
-
-            _sceneToSearch = GUILayout.TextField(_sceneToSearch, new GUIStyle("ToolbarSearchTextField"));
-
-            if (_sceneToSearch != "")
-            {
-                
-                if (GUILayout.Button(EditorGUIUtility.IconContent("winbtn_mac_close_h"), EditorStyles.iconButton, 
-                        GUILayout.Width(18), GUILayout.Height(18)))
-                    _sceneToSearch = "";
-            }
-
-            GUILayout.EndHorizontal();
-
-            if (_sceneToSearch == "")
-            {
-                _searchScrollPosition = Vector2.zero;
-                return;
-            }
-            
-            GUILayout.BeginVertical();
-
-            _searchScrollPosition = GUILayout.BeginScrollView(_searchScrollPosition, false, false, GUILayout.Width(position.width - 15), 
-                GUILayout.MinHeight(1), GUILayout.MaxHeight(1000), GUILayout.ExpandHeight(true));
-            
-            foreach (var scene in EditorBuildSettings.scenes)
-            {
-                string sceneName = GetSceneName(scene.path);
-                sceneName = sceneName.ToLower();
-                bool exists = sceneName.Contains(_sceneToSearch.ToLower());
-                if (!exists) 
-                    continue;
-
-                GUILayout.Space(5);
-
-                DrawSceneButton(scene.path);
-            }
-            
-            GUILayout.EndScrollView();
-
-            GUILayout.EndVertical();
-        }
-
-        private void DrawScenesList()
-        {
-            GUILayout.BeginVertical("Box");
-
-            _scrollPosition = GUILayout.BeginScrollView(_scrollPosition, false, false, GUILayout.Width(position.width - 15), 
-                GUILayout.MinHeight(1), GUILayout.MaxHeight(1000), GUILayout.ExpandHeight(true));
-
-            DrawAllScenes();
-
-            if (GUILayout.Button("Open all scenes"))
-            {
-                foreach (var scene in EditorBuildSettings.scenes)
-                    EditorSceneManager.OpenScene(scene.path, OpenSceneMode.Additive);
-            }
-
-            GUILayout.EndScrollView();
-
-            GUILayout.EndVertical();
-        }
-
-        private void DrawAllScenes()
-        {
-            _sceneButtonStyle = new GUIStyle(EditorStyles.toolbarButton);
-            _sceneButtonStyle.fontSize = 10;
-            _sceneButtonStyle.alignment = TextAnchor.MiddleLeft;
-
-            foreach (var scene in EditorBuildSettings.scenes)
-            {
-                GUILayout.Space(5);
-
-                DrawSceneButton(scene.path);
-            }
-        }
-
-        private void DrawSceneButton(string path)
-        {
-            if (!GUILayout.Button(GetSceneName(path), _sceneButtonStyle)) 
+            StyleSheet styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(StyleSheetPath);
+            if (ReferenceEquals(styleSheet, null))
                 return;
 
-            switch (Event.current.button)
+            rootVisualElement.styleSheets.Add(styleSheet);
+        }
+
+        private void CreateToolbar()
+        {
+            Toolbar toolbar = new Toolbar();
+
+            _searchField = new ToolbarSearchField();
+            _searchField.AddToClassList("toolbar__search");
+            _searchField.RegisterValueChangedCallback(HandleSearchChanged);
+            toolbar.Add(_searchField);
+
+            ToolbarButton openAllButton = new ToolbarButton(OpenAllScenes);
+            openAllButton.text = "Open All";
+            toolbar.Add(openAllButton);
+
+            rootVisualElement.Add(toolbar);
+        }
+
+        private void CreateRecentSection()
+        {
+            _recentSection = new VisualElement();
+            _recentSection.AddToClassList("section");
+
+            VisualElement header = CreateSectionHeader("RECENT");
+            Button clearButton = new Button(ClearRecentScenes);
+            clearButton.AddToClassList("section__clear-button");
+            clearButton.text = "✕";
+            clearButton.tooltip = "Clear recent scenes";
+            header.Add(clearButton);
+            _recentSection.Add(header);
+
+            _recentRowsContainer = new VisualElement();
+            _recentSection.Add(_recentRowsContainer);
+
+            rootVisualElement.Add(_recentSection);
+        }
+
+        private void CreateScenesSection()
+        {
+            VisualElement scenesSection = new VisualElement();
+            scenesSection.AddToClassList("section");
+            scenesSection.AddToClassList("section--scenes");
+            
+            _scenesScrollView = new ScrollView();
+            _scenesScrollView.AddToClassList("section__scroll");
+            scenesSection.Add(_scenesScrollView);
+
+            rootVisualElement.Add(scenesSection);
+        }
+
+        private VisualElement CreateSectionHeader(string title)
+        {
+            VisualElement header = new VisualElement();
+            header.AddToClassList("section__header");
+
+            Label titleLabel = new Label(title);
+            titleLabel.AddToClassList("section__title");
+            header.Add(titleLabel);
+
+            return header;
+        }
+
+        private void SubscribeToEditorEvents()
+        {
+            EditorBuildSettings.sceneListChanged += RebuildAllRows;
+            EditorSceneManager.sceneOpened += HandleSceneOpened;
+            EditorSceneManager.sceneClosed += HandleSceneClosed;
+        }
+
+        private void UnsubscribeFromEditorEvents()
+        {
+            EditorBuildSettings.sceneListChanged -= RebuildAllRows;
+            EditorSceneManager.sceneOpened -= HandleSceneOpened;
+            EditorSceneManager.sceneClosed -= HandleSceneClosed;
+        }
+
+        private void HandleSceneOpened(Scene scene, OpenSceneMode mode)
+        {
+            RefreshOpenHighlights();
+        }
+
+        private void HandleSceneClosed(Scene scene)
+        {
+            RefreshOpenHighlights();
+        }
+
+        private void HandleSearchChanged(ChangeEvent<string> changeEvent)
+        {
+            ApplySearchFilter();
+        }
+
+        private void RebuildAllRows()
+        {
+            RebuildSceneRows();
+            RebuildRecentRows();
+        }
+
+        private void RebuildSceneRows()
+        {
+            _sceneRows.Clear();
+            _scenesScrollView.Clear();
+
+            foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)
             {
-                case 0:
-                    EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
-                    EditorSceneManager.OpenScene(path);
-                    AddSceneToLatestOpened(path);
-                    break;
-                case 2:
-                    EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-                    AddSceneToLatestOpened(path);
-                    break;
-                case 1:
+                SceneRowView sceneRow = CreateSceneRow(scene.path);
+                _sceneRows.Add(sceneRow);
+                _scenesScrollView.Add(sceneRow);
+            }
+
+            if (_sceneRows.Count == 0)
+                _scenesScrollView.Add(CreateEmptyListLabel());
+
+            ApplySearchFilter();
+            RefreshOpenHighlights();
+        }
+
+        private void RebuildRecentRows()
+        {
+            _recentRows.Clear();
+            _recentRowsContainer.Clear();
+
+            foreach (string scenePath in _recentScenesRepository.GetAll())
+            {
+                SceneRowView recentRow = CreateSceneRow(scenePath);
+                _recentRows.Add(recentRow);
+                _recentRowsContainer.Add(recentRow);
+            }
+
+            ApplySearchFilter();
+            RefreshOpenHighlights();
+        }
+
+        private SceneRowView CreateSceneRow(string scenePath)
+        {
+            SceneRowView sceneRow = new SceneRowView(scenePath);
+            sceneRow.OnOpenClicked = OpenSceneSingle;
+            sceneRow.OnAdditiveClicked = OpenSceneAdditive;
+            sceneRow.OnPingClicked = PingSceneAsset;
+            return sceneRow;
+        }
+
+        private Label CreateEmptyListLabel()
+        {
+            Label emptyLabel = new Label("No scenes in Build Settings");
+            emptyLabel.AddToClassList("section__empty-message");
+            return emptyLabel;
+        }
+
+        private void ApplySearchFilter()
+        {
+            string searchText = _searchField.value;
+
+            foreach (SceneRowView sceneRow in _sceneRows)
+                ApplyFilterToRow(sceneRow, searchText);
+
+            foreach (SceneRowView recentRow in _recentRows)
+                ApplyFilterToRow(recentRow, searchText);
+
+            UpdateRecentSectionVisibility();
+        }
+
+        private void ApplyFilterToRow(SceneRowView sceneRow, string searchText)
+        {
+            if (sceneRow.HasNameContaining(searchText))
+            {
+                sceneRow.Show();
+                return;
+            }
+
+            sceneRow.Hide();
+        }
+
+        private void UpdateRecentSectionVisibility()
+        {
+            foreach (SceneRowView recentRow in _recentRows)
+            {
+                if (recentRow.IsVisible())
                 {
-                    Object obj = AssetDatabase.LoadAssetAtPath(path, typeof(Object));
-                    Selection.activeObject = obj;
-                    EditorGUIUtility.PingObject(obj);
-                    break;
+                    _recentSection.style.display = DisplayStyle.Flex;
+                    return;
                 }
             }
+
+            _recentSection.style.display = DisplayStyle.None;
         }
 
-        private void AddSceneToLatestOpened(string scenePath)
+        private void RefreshOpenHighlights()
         {
-            if (_lastestScenes.Contains(scenePath))
+            foreach (SceneRowView sceneRow in _sceneRows)
+                RefreshRowOpenHighlight(sceneRow);
+
+            foreach (SceneRowView recentRow in _recentRows)
+                RefreshRowOpenHighlight(recentRow);
+        }
+
+        private void RefreshRowOpenHighlight(SceneRowView sceneRow)
+        {
+            if (IsSceneOpen(sceneRow.ScenePath))
+            {
+                sceneRow.MarkAsOpen();
                 return;
-            
-            _lastestScenes.Enqueue(scenePath);
-            if (_lastestScenes.Count > 2)
-                _lastestScenes.Dequeue();
+            }
+
+            sceneRow.MarkAsClosed();
         }
 
-        private string GetSceneName(string _path)
+        private bool IsSceneOpen(string scenePath)
         {
-            char[] path = _path.ToCharArray();
-            string sceneName = "";
-
-            for (int i = path.Length - 1; i >= 0; i--)
+            for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
             {
-                if (path[i] == '/')
-                    break;
-                sceneName += path[i];
+                if (SceneManager.GetSceneAt(sceneIndex).path == scenePath)
+                    return true;
             }
 
-            path = sceneName.ToCharArray();
-            sceneName = "";
+            return false;
+        }
 
-            for (int i = path.Length - 1; i >= 0; i--)
-            {
-                if (path[i] == '.')
-                    break;
-                sceneName += path[i];
-            }
+        private void OpenSceneSingle(string scenePath)
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
 
-            return sceneName;
+            EditorSceneManager.OpenScene(scenePath);
+            _recentScenesRepository.Add(scenePath);
+            RebuildRecentRows();
+        }
+
+        private void OpenSceneAdditive(string scenePath)
+        {
+            EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+            _recentScenesRepository.Add(scenePath);
+            RebuildRecentRows();
+        }
+
+        private void PingSceneAsset(string scenePath)
+        {
+            Object sceneAsset = AssetDatabase.LoadAssetAtPath<Object>(scenePath);
+            Selection.activeObject = sceneAsset;
+            EditorGUIUtility.PingObject(sceneAsset);
+        }
+
+        private void OpenAllScenes()
+        {
+            foreach (EditorBuildSettingsScene scene in EditorBuildSettings.scenes)
+                EditorSceneManager.OpenScene(scene.path, OpenSceneMode.Additive);
+        }
+
+        private void ClearRecentScenes()
+        {
+            _recentScenesRepository.Clear();
+            RebuildRecentRows();
         }
     }
 }

@@ -1,9 +1,9 @@
 {
   "name": "com.lalo.scenesnavigator",
-  "version": "1.6.4",
+  "version": "1.8.0",
   "displayName": "ScenesNavigator",
-  "unity": "2020.3",
-  "unityRelease": "0b5",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
   "documentationUrl": "",
   "changelogUrl": "",
   "licensesUrl": "",

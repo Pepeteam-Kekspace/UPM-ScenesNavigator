@@ -1,0 +1,122 @@
+.toolbar__search {
+    flex-grow: 1;
+    width: auto;
+    margin: 1px 4px 1px 2px;
+}
+
+.section {
+    margin: 2px 6px 0 6px;
+}
+
+.section--scenes {
+    flex-grow: 1;
+    margin-bottom: 4px;
+}
+
+.section__header {
+    flex-direction: row;
+    align-items: center;
+    margin: 6px 2px 3px 2px;
+}
+
+.section__title {
+    flex-grow: 1;
+    font-size: 10px;
+    -unity-font-style: bold;
+    letter-spacing: 1.5px;
+    color: var(--unity-colors-label-text);
+    opacity: 0.55;
+}
+
+.section__clear-button {
+    width: 18px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    font-size: 10px;
+    background-color: transparent;
+    border-width: 0;
+    opacity: 0.55;
+}
+
+.section__clear-button:hover {
+    opacity: 1;
+}
+
+.section__scroll {
+    flex-grow: 1;
+}
+
+.section__empty-message {
+    margin-top: 12px;
+    -unity-text-align: middle-center;
+    opacity: 0.5;
+}
+
+.scene-row {
+    flex-direction: row;
+    align-items: center;
+    height: 20px;
+    margin: 1px 0;
+    padding-left: 6px;
+    padding-right: 3px;
+    border-radius: 4px;
+    border-left-width: 2px;
+    border-left-color: transparent;
+    background-color: rgba(0, 0, 0, 0.18);
+}
+
+.scene-row:hover {
+    background-color: var(--unity-colors-button-background-hover);
+}
+
+.scene-row--open {
+    background-color: var(--unity-colors-highlight-background-inactive);
+    border-left-color: var(--unity-colors-highlight-background);
+}
+
+.scene-row--open .scene-row__name {
+    -unity-font-style: bold;
+}
+
+.scene-row--missing {
+    opacity: 0.4;
+}
+
+.scene-row__name {
+    flex-grow: 1;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scene-row__actions {
+    flex-direction: row;
+    display: none;
+}
+
+.scene-row:hover .scene-row__actions {
+    display: flex;
+}
+
+.scene-row__action-button {
+    width: 20px;
+    height: 16px;
+    margin: 0 1px;
+    padding: 0;
+    justify-content: center;
+    align-items: center;
+    background-color: transparent;
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.scene-row__action-button:hover {
+    background-color: var(--unity-colors-button-background-pressed);
+}
+
+.scene-row__action-button > Image {
+    width: 12px;
+    height: 12px;
+}
